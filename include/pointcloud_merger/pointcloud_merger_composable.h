@@ -9,7 +9,8 @@
 #include <memory>
 
 #include <message_filters/subscriber.h>
-#include <message_filters/time_synchronizer.h>
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -33,11 +34,17 @@ namespace pointcloud_merger
 
     std::shared_ptr<tf2_ros::Buffer> tf2_;
     std::shared_ptr<tf2_ros::TransformListener> tf2_listener_;
-    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>> sub1_;
-    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>> sub2_;
+
+    message_filters::Subscriber<sensor_msgs::msg::PointCloud2> sub1_;
+    message_filters::Subscriber<sensor_msgs::msg::PointCloud2> sub2_;
+
+    std::shared_ptr<message_filters::Synchronizer<message_filters::sync_policies::ApproximateTime<
+        sensor_msgs::msg::PointCloud2, sensor_msgs::msg::PointCloud2>>>
+        sync_;
 
     // ROS Parameters
     unsigned int input_queue_size_;
+    double max_interval_duration_;
     bool gResize = false;
     std::string target_frame_;
     std::string cloud1_;

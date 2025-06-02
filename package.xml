@@ -18,6 +18,7 @@
     <depend>tf2_sensor_msgs</depend>
 
     <export>
+        <build_type>ament_cmake</build_type>
         <rclcpp_components plugin="${prefix}/pointcloud_merger.xml"/>
     </export>
 

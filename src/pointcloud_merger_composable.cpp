@@ -57,6 +57,7 @@ namespace pointcloud_merger
     this->declare_parameter<std::string>("cloud2", "sensor2/depth/points");
     this->declare_parameter<std::string>("cloud_out", "cloud_out");
     this->declare_parameter<int>("input_queue_size", 10);
+    this->declare_parameter<double>("max_interval_duration", 0.2);
 
     // Init internal pointcloud
     cloud1RW_ = std::make_shared<sensor_msgs::msg::PointCloud2>();
@@ -67,17 +68,25 @@ namespace pointcloud_merger
     cloud2_ = this->get_parameter("cloud2").as_string();
     cloud_out_ = this->get_parameter("cloud_out").as_string();
     input_queue_size_ = this->get_parameter("input_queue_size").as_int();
+    max_interval_duration_ = this->get_parameter("max_interval_duration").as_double();
+
+    rclcpp::QoS qos = rclcpp::QoS(10);
 
     RCLCPP_INFO(this->get_logger(), "Got a subscriber to scan, starting subscriber to pointcloud 1");
-    sub1_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(
-        this, cloud1_, rclcpp::QoS(input_queue_size_).get_rmw_qos_profile());
+    sub1_.subscribe(this, cloud1_, qos.get_rmw_qos_profile());
 
     RCLCPP_INFO(this->get_logger(), "Got a subscriber to scan, starting subscriber to pointcloud 2");
-    sub2_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(
-        this, cloud2_, rclcpp::QoS(input_queue_size_).get_rmw_qos_profile());
+    sub2_.subscribe(this, cloud2_, qos.get_rmw_qos_profile());
 
-    message_filters::TimeSynchronizer<sensor_msgs::msg::PointCloud2, sensor_msgs::msg::PointCloud2> sync_(*sub1_, *sub2_, 10);
-    sync_.registerCallback(std::bind(&PointCloudMergerComposable::callbackSync, this, std::placeholders::_1, std::placeholders::_2));
+    sync_ = std::make_shared<message_filters::Synchronizer<message_filters::sync_policies::ApproximateTime<
+        sensor_msgs::msg::PointCloud2, sensor_msgs::msg::PointCloud2>>>(
+        message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::PointCloud2,
+                                                        sensor_msgs::msg::PointCloud2>(input_queue_size_),
+        sub1_, sub2_);
+
+    sync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(max_interval_duration_));
+
+    sync_->registerCallback(std::bind(&PointCloudMergerComposable::callbackSync, this, std::placeholders::_1, std::placeholders::_2));
 
     tf2_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
     tf2_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf2_);
@@ -126,10 +135,6 @@ namespace pointcloud_merger
       *cloud2RW_ = *cloud_msg2;
     }
 
-    // for fields setup
-    sensor_msgs::PointCloud2Modifier modifier(output_);
-    modifier.setPointCloud2FieldsByString(1, "xyz");
-
     if (cloud1RW_ != 0 && cloud2RW_ != 0)
     {
       if ((cloud1RW_->width != 0) && (cloud2RW_->width != 0))
@@ -162,53 +167,28 @@ namespace pointcloud_merger
         output_.is_bigendian = cloud1RW_->is_bigendian;
         output_.is_dense = cloud1RW_->is_dense; // there may be invalid points
 
+        output_.fields = cloud1RW_->fields;
+        output_.point_step = cloud1RW_->point_step;
+        output_.row_step = output_.width * output_.point_step;
+
         if (gResize == false)
         {
-          modifier.resize(output_.width);
+          output_.data.resize(output_.row_step);
           gResize = true;
           RCLCPP_INFO(this->get_logger(), "Output cloud resized : %d", output_.width * output_.height);
         }
 
-        // Lets copy every XYZ
-        sensor_msgs::PointCloud2Iterator<float> out_x(output_, "x");
-        sensor_msgs::PointCloud2Iterator<float> out_y(output_, "y");
-        sensor_msgs::PointCloud2Iterator<float> out_z(output_, "z");
+        size_t cloud1_data_size = iSizeCloud1 * cloud1RW_->point_step;
+        size_t cloud2_data_size = iSizeCloud2 * cloud2RW_->point_step;
 
-        sensor_msgs::PointCloud2Iterator<float> c1_x(*cloud1RW_, "x");
-        sensor_msgs::PointCloud2Iterator<float> c1_y(*cloud1RW_, "y");
-        sensor_msgs::PointCloud2Iterator<float> c1_z(*cloud1RW_, "z");
+        std::memcpy(output_.data.data(),
+                    cloud1RW_->data.data(),
+                    cloud1_data_size);
 
-        sensor_msgs::PointCloud2Iterator<float> c2_x(*cloud2RW_, "x");
-        sensor_msgs::PointCloud2Iterator<float> c2_y(*cloud2RW_, "y");
-        sensor_msgs::PointCloud2Iterator<float> c2_z(*cloud2RW_, "z");
+        std::memcpy(output_.data.data() + cloud1_data_size,
+                    cloud2RW_->data.data(),
+                    cloud2_data_size);
 
-        // Cloud1
-        for (int i = 0; i < iSizeCloud1; ++i)
-        {
-          *out_x = *c1_x;
-          *out_y = *c1_y;
-          *out_z = *c1_z;
-          ++out_x;
-          ++out_y;
-          ++out_z;
-          ++c1_x;
-          ++c1_y;
-          ++c1_z;
-        }
-
-        // Cloud2
-        for (int i = 0; i < iSizeCloud2; ++i)
-        {
-          *out_x = *c2_x;
-          *out_y = *c2_y;
-          *out_z = *c2_z;
-          ++out_x;
-          ++out_y;
-          ++out_z;
-          ++c2_x;
-          ++c2_y;
-          ++c2_z;
-        }
         pub_->publish(output_);
       }
     }
