@@ -38,8 +38,6 @@ namespace pointcloud_merger
 
     // ROS Parameters
     unsigned int input_queue_size_;
-    unsigned int rate_frequency_;
-    double tolerance_;
     bool gResize = false;
     std::string target_frame_;
     std::string cloud1_;

@@ -7,7 +7,7 @@
     <maintainer email="thomas.simon@ensta-paris.com">Thomas SIMON</maintainer>
     <license>BSD</license>
 
-    <buildtool_depend>colcon</buildtool_depend>
+    <buildtool_depend>ament_cmake</buildtool_depend>
 
     <depend>message_filters</depend>
     <depend>rclcpp</depend>

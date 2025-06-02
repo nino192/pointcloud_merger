@@ -53,24 +53,20 @@ namespace pointcloud_merger
     gResize = false;
 
     this->declare_parameter<std::string>("target_frame", "base_link");
-    this->declare_parameter<double>("transform_tolerance", 1.0);
     this->declare_parameter<std::string>("cloud1", "sensor1/depth/points");
     this->declare_parameter<std::string>("cloud2", "sensor2/depth/points");
     this->declare_parameter<std::string>("cloud_out", "cloud_out");
     this->declare_parameter<int>("input_queue_size", 10);
-    this->declare_parameter<double>("rate_frequency", 30.0);
 
     // Init internal pointcloud
     cloud1RW_ = std::make_shared<sensor_msgs::msg::PointCloud2>();
     cloud2RW_ = std::make_shared<sensor_msgs::msg::PointCloud2>();
 
     target_frame_ = this->get_parameter("target_frame").as_string();
-    tolerance_ = this->get_parameter("transform_tolerance").as_double();
     cloud1_ = this->get_parameter("cloud1").as_string();
     cloud2_ = this->get_parameter("cloud2").as_string();
     cloud_out_ = this->get_parameter("cloud_out").as_string();
     input_queue_size_ = this->get_parameter("input_queue_size").as_int();
-    rate_frequency_ = this->get_parameter("rate_frequency").as_double();
 
     RCLCPP_INFO(this->get_logger(), "Got a subscriber to scan, starting subscriber to pointcloud 1");
     sub1_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(
