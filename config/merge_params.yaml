@@ -1,4 +1,4 @@
-pointcloud_merger:
+/marinero_ble/pointcloud_merger:
   ros__parameters:
     target_frame: base_link
     cloud1: /livox/front_lidar/points
